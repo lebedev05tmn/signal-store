@@ -2,7 +2,7 @@ import signal from './lib/signal-store';
 
 const root = document.getElementById('app')!;
 
-const counter = signal('hello', 0);
+const counter = signal('counter', 0);
 
 const Text = () => {
     const paragraph = document.createElement('p');
@@ -10,7 +10,6 @@ const Text = () => {
 
     counter.on((value) => {
         paragraph.textContent = String(value);
-
     });
 
     return paragraph;
