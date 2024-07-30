@@ -1,67 +1,73 @@
-interface Signal<T> {
-    get value(): T;
-    set value(newValue: T);
-    on: (callback: (value: T) => void) => void;
-    off: (callback: (value: T) => void) => void;
+export type Signal<T> = {
+  get value(): T;
+  set value(newValue: T);
+  on: (callback: (value: T) => void) => void;
+  off: (callback: (value: T) => void) => void;
+};
+
+interface IStore<U> {
+  state: U;
+  listeners: { [id: string]: ((value: any) => void)[] };
+  subscribe: <T>(id: string, callback: (value: T) => void) => void;
+  unsubscribe: <T>(id: string, callback: (value: T) => void) => void;
+  notify: <T>(id: string, value: T) => void;
+  signal: <K extends keyof U>(id: K) => Signal<U[K]>;
 }
 
-interface IStore {
-    state: { [id: string]: any };
-    listeners: { [id: string]: ((value: any) => void)[] };
-    subscribe: (id: string, callback: (value: any) => void) => void;
-    unsubscribe: (id: string, callback: (value: any) => void) => void;
-    notify: (id: string, value: any) => void;
-}
+const createStore = <U extends Record<string, any>>(state: U): IStore<U> => {
+  const listeners: { [id: string]: ((value: any) => void)[] } = {};
+  const proxyState = new Proxy(state, {
+    set: (target, key, value) => {
+      target[key as keyof U] = value;
+      notify(key as string, value);
+      return true;
+    },
+  });
 
-class Store implements IStore {
-    state: { [id: string]: any } = {};
-    listeners: { [id: string]: ((value: any) => void)[] } = {};
-
-    constructor() {
-        this.state = new Proxy(this.state, {
-            set: (target, key, value) => {
-                target[key as string] = value;
-                this.notify(key as string, value);
-                return true;
-            },
-        });
+  const subscribe = <T>(id: string, callback: (value: T) => void) => {
+    if (!listeners[id]) {
+      listeners[id] = [];
     }
+    listeners[id].push(callback);
+  };
 
-    subscribe(id: string, callback: (value: any) => void) {
-        if (!this.listeners[id]) {
-            this.listeners[id] = [];
-        }
-        this.listeners[id].push(callback);
+  const unsubscribe = <T>(id: string, callback: (value: T) => void) => {
+    if (listeners[id]) {
+      listeners[id] = listeners[id].filter((listener) => listener !== callback);
     }
+  };
 
-    unsubscribe(id: string, callback: (value: any) => void) {
-        if (this.listeners[id]) {
-            this.listeners[id] = this.listeners[id].filter((listener) => listener !== callback);
-        }
+  const notify = <T>(id: string, value: T) => {
+    if (listeners[id]) {
+      listeners[id].forEach((listener) => listener(value));
     }
+  };
 
-    notify(id: string, value: any) {
-        if (this.listeners[id]) {
-            this.listeners[id].forEach((listener) => listener(value));
-        }
-    }
-}
-
-const store = new Store();
-
-export default function signal<T>(id: string, initialValue?: T): Signal<T> {
-    if (!Object.prototype.hasOwnProperty.call(store.state, id)) {
-        store.state[id] = initialValue;
-    }
-
+  const signal = <K extends keyof U>(id: K): Signal<U[K]> => {
     return {
-        get value() {
-            return store.state[id];
-        },
-        set value(newValue: T) {
-            store.state[id] = newValue;
-        },
-        on: (callback: (value: T) => void) => store.subscribe(id, callback),
-        off: (callback: (value: T) => void) => store.unsubscribe(id, callback),
+      get value(): U[K] {
+        return proxyState[id];
+      },
+      set value(newValue: U[K]) {
+        proxyState[id] = newValue;
+      },
+      on: (callback: (value: U[K]) => void) => {
+        subscribe(id as string, callback);
+      },
+      off: (callback: (value: U[K]) => void) => {
+        unsubscribe(id as string, callback);
+      },
     };
-}
+  };
+
+  return {
+    state: proxyState,
+    listeners,
+    subscribe,
+    unsubscribe,
+    notify,
+    signal,
+  };
+};
+
+export default createStore;
