@@ -1,11 +1,11 @@
 import createStore, { Signal } from './lib/signal-store';
 
-const store = createStore({count: 0})
+const {signal} = createStore({count: 0})
 
 const root = document.getElementById('app')!;
 
-const length = store.signal('count');
-const counter =  store.signal('count')
+const length = signal('count');
+const counter =  signal('count')
 
 const Text = <T,>(listener: Signal<T>) => {
     const paragraph = document.createElement('p');
